@@ -1,0 +1,92 @@
+# 1. 绘图分析2020长江流域特大洪水
+
+```{julia}
+## plot for shapefile
+using MakieLayers
+using GLMakie
+using Shapefile
+
+dir_data = "./data/shp/small"
+shp_prov = read_sf("$dir_data/bou2_4p_sml.shp")
+shp_china = read_sf("$dir_data/bou1_4p_sml.shp")
+shp_changjiang = read_sf("$dir_data/basin_changjiang_200m.shp")
+
+function add_basemap!(ax)
+  # ax = Axis(fig; limits=((70, 140), (15, 55)), kw...)
+  # plot_poly!(ax, shp_prov; color=nan_color, strokewidth=0.5, strokecolor=:grey)
+  # plot_poly!(ax, shp_china; color=nan_color, strokewidth=0.6, strokecolor=:black)
+  plot_poly!(ax, shp_changjiang; color=nan_color, strokewidth=0.6, strokecolor=:red)
+end
+
+non_label_ticks(ticks) = (ticks, ["" for i in ticks])
+
+function rm_ticks!(ax)
+  # hidedecorations!(ax, ticklabels=false, label=false)
+  xticks = non_label_ticks(70:10:140)
+  yticks = non_label_ticks(20:10:55)
+
+  ax.xticks[] = xticks
+  ax.yticks[] = yticks
+
+  ticksize = 0
+  ax.xticksize = ticksize
+  ax.yticksize = ticksize
+  ax.limits = ((70, 140), (15, 55))
+
+  ax.xgridstyle = :dash
+  ax.xgridwidth = 0.6
+  ax.ygridstyle = :dash
+  ax.ygridwidth = 0.6
+  add_basemap!(ax)
+end
+```
+
+# 2. load data
+```{julia}
+using Ipaper
+using NetCDFTools
+scales = [1, 2, 4, 8, 12, 23, 46]
+
+f = "Z:/Researches/Flood_response/OUTPUT/ChinaDrought_SPI_D025_1999-2022.nc"
+lon, lat = st_dims(f)
+dates = Date.(nc_date(f))
+ntime = length(dates)
+times = 1:ntime-15
+
+@time SPI = nc_read(f, "SPI");
+```
+
+# 3. 绘图
+```{julia}
+fig = Figure(size=(1200, 800), title="Hello")
+
+sg = SliderGrid(fig[0, 1:4],
+  (label="Time-Scale: ", range=eachindex(scales), startvalue=3, format=i -> string(scales[i])),
+  (label="Date: ", range=times, startvalue=410, format=i -> format(dates[i], "yyyy-mm-dd")))
+rowgap!(sg.layout, 5)
+
+sg_scale, sg_time = sg.sliders
+scale, itime = sg_scale.value, sg_time.value
+map_on_keyboard_lr(fig, sg_scale)
+map_on_keyboard_ud(fig, sg_time, 4)
+
+_itime = findfirst(dates .>= Date(2020, 6, 1))
+set_close_to!(sg_time, _itime)
+
+inds = @lift $itime .+ (1:16) .- 1
+labels = @lift format.(dates[$inds], "yyyy-mm-dd")
+
+z = @lift SPI[:, :, $inds, $scale]
+axs, plts = imagesc!(fig, lon, lat, z;
+  colors=amwg256, col_rev=true, colorrange=(-4, 4),
+  # kw_axis=(; aspect=1.6),
+  (fun_axis!)=rm_ticks!, gap=0, titles=nothing)
+add_labels!(axs, labels, 70, 55; fontsize=20)
+title = @lift @sprintf("SPI (Time-Scale = %d × 8-days)", scales[$scale])
+label_title = Label(fig[-1, :], title, fontsize=24, tellwidth=false)
+colgap!(fig.layout, 4, Fixed(5))
+rowgap!(fig.layout, 1, Fixed(5))
+rowgap!(fig.layout, 2, Fixed(5))
+# GLMakie.save("Figure1_$title.png", fig)
+fig
+```
