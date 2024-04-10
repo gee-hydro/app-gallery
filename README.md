@@ -2,6 +2,10 @@
 
 ## 1. GEE
 
+### LAI除噪
+
+- [LAI_denosing](https://github.com/gee-hydro/pkgs_examples/blob/master/app/app_denoising_LAI_SVDI.js)
+  ![](./images/app_LAI_denoising.png)
 
 ## 2. Makie
 
